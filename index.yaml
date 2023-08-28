@@ -1,3 +1,14 @@
 apiVersion: v1
-entries: {}
-generated: "2023-08-28T06:47:37.10584658-06:00"
+entries:
+  ocsp-manager:
+  - apiVersion: v2
+    appVersion: 0.0.1
+    created: "2023-08-28T13:01:49.189472368Z"
+    description: A Helm chart for Kubernetes
+    digest: cfac7095ff3f4dc9c280f5e93c21f4dbed52d85be0d1c3486fa6145354717aa5
+    name: ocsp-manager
+    type: application
+    urls:
+    - https://github.com/ocsp-manager/charts/releases/download/ocsp-manager-0.1.1/ocsp-manager-0.1.1.tgz
+    version: 0.1.1
+generated: "2023-08-28T13:01:49.189476968Z"
