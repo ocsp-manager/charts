@@ -16,9 +16,12 @@ jobs:
           git config user.name "$GITHUB_ACTOR"
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
           
+      # https://github.com/helm/chart-releaser-action
+      #
       # git switch --orphan gh-pages
       # git commit --allow-empty -m "initial commit"
       # git push -u origin gh-pages
+      #
       # set github pages source branch to gh-pages
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.5.0
