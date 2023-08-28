@@ -8,6 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions: write-all
     steps:
       - uses: actions/checkout@v1
 
@@ -28,5 +29,6 @@ jobs:
         with:
           charts_dir: stable
         env:
-          CR_TOKEN: "${{ secrets.ACCESS_TOKEN }}"
+          # token must have proper access to the repo or build will fail with 404/401
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
