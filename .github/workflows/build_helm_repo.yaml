@@ -28,5 +28,5 @@ jobs:
         with:
           charts_dir: stable
         env:
-          CR_TOKEN: "${{ secrets.GHCR_PASSWORD }}"
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
