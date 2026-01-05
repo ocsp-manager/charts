@@ -1,0 +1,191 @@
+{{- if .Values.webhook.enabled }}
+
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "ocsp-manager.fullname" . }}-selfsigned
+spec:
+  selfSigned: {}
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "ocsp-manager.fullname" . }}-webhook
+spec:
+  secretName: {{ include "ocsp-manager.fullname" . }}-webhook
+  subject:
+    organizations:
+    - ocsp-manager-selfsigned
+  dnsNames:
+  - {{ printf "%s-webhook" (include "ocsp-manager.fullname" .) | quote }}
+  - {{ printf "%s-webhook.%s" (include "ocsp-manager.fullname" .) .Release.Namespace | quote }}
+  - {{ printf "%s-webhook.%s.svc" (include "ocsp-manager.fullname" .) .Release.Namespace | quote }}
+  - {{ printf "%s-webhook.%s.svc.cluster.local" (include "ocsp-manager.fullname" .) .Release.Namespace | quote }}
+  duration: "87600h0m0s"
+  renewBefore: "360h0m0s"
+  secretTemplate:
+    labels:
+{{- include "ocsp-manager.labels" . | nindent 6 }}
+  issuerRef:
+    name: {{ include "ocsp-manager.fullname" . }}-selfsigned
+    kind: "Issuer"
+    group: "cert-manager.io"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ocsp-manager.fullname" . }}-webhook
+  labels:
+    {{- include "ocsp-manager.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webhook
+spec:
+  replicas: {{ .Values.webhook.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ocsp-manager.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: webhook
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "ocsp-manager.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: webhook
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "ocsp-manager.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: OCSP_MANAGER_WEBHOOK_ENABLED
+              value: "true"
+            - name: OCSP_MANAGER_WEBHOOK_ONLY
+              value: "true"
+            - name: OCSP_MANAGER_LISTEN_TLS
+              value: "true"
+            - name: OCSP_MANAGER_LISTEN_HOST
+              value: "0.0.0.0"
+            - name: OCSP_MANAGER_LISTEN_PORT
+              value: "8443"
+            - name: OCSP_MANAGER_LISTEN_PUBLIC_CERT
+              value: /tmp/tls/tls.crt
+            - name: OCSP_MANAGER_LISTEN_PRIVATE_KEY
+              value: /tmp/tls/tls.key
+{{- if .Values.extraEnv }}
+{{ toYaml .Values.extraEnv | indent 12 }}
+{{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: webhook-cert
+              readOnly: true
+              mountPath: "/tmp/tls"
+
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+      - name: webhook-cert
+        secret:
+          secretName: {{ include "ocsp-manager.fullname" . }}-webhook
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ocsp-manager.fullname" . }}-webhook
+  labels:
+{{- include "ocsp-manager.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: https
+      protocol: TCP
+      port: 443
+      targetPort: 8443
+  selector:
+    app.kubernetes.io/component: webhook
+{{- include "ocsp-manager.selectorLabels" . | nindent 4 }}
+
+# https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ include "ocsp-manager.fullname" . }}-webhook
+  labels:
+{{- include "ocsp-manager.labels" . | nindent 4 }}
+  annotations:
+    "cert-manager.io/inject-ca-from": {{ .Release.Namespace }}/{{ include "ocsp-manager.fullname" . }}-webhook
+webhooks:
+  - name: {{ include "ocsp-manager.fullname" . }}-webhook.ocsp-manager.io
+    # this *must* be listed in newest first order
+    admissionReviewVersions:
+    - v1
+    # - v1beta1
+    clientConfig:
+      # caBundle: <inline data>
+      # url: <use instead of service definition>
+      service:
+        name: {{ include "ocsp-manager.fullname" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        path: "/webhook"
+        port: 443
+    rules:
+      - operations: ["CREATE"]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["secrets"]
+        scope: "Namespaced"
+    # use if modifying object(s) aside from the object submitted for review
+    sideEffects: None
+    timeoutSeconds: 10
+    # whether to re-invoke if other webhooks modify the object after this
+    # it is not guaranteed that a webhook will only be invoked once per event
+    reinvocationPolicy: Never
+    # fail open
+    failurePolicy: Ignore
+
+    # objectSelector:
+    #   matchLabels:
+    #     foo: bar
+
+    # namespaceSelector:
+    #   matchLabels:
+    #     mutateme: enabled
+
+    # matchConditions:
+    #   - name: 'exclude-leases' # Each match condition must have a unique name
+    #     expression: '!(request.resource.group == "coordination.k8s.io" && request.resource.resource == "leases")' # Match non-lease resources.
+    #   - name: 'exclude-kubelet-requests'
+    #     expression: '!("system:nodes" in request.userInfo.groups)' # Match requests made by non-node users.
+    #   - name: 'rbac' # Skip RBAC requests, which are handled by the second webhook.
+    #     expression: 'request.resource.group != "rbac.authorization.k8s.io"'
+    # matchConditions:
+    #   - name: 'only-tls-secrets'
+    #     expression: 'request.object.type == "kubernetes.io/tls"'
+
+{{- end }}

@@ -13,13 +13,24 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: "latest"
 
+# requires cert-manager pre-installed to function
+webhook:
+  enabled: false
+  replicaCount: 3
+
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
 extraEnv: []
-#- name: OCSP_MANAGER_SECRET_LABEL_SELECTOR
-#  value: ocsp-manager.io/enabled=true
+# - name: OCSP_MANAGER_SECRET_LABEL_SELECTOR
+#   value: ocsp-manager.io/enabled=true
+# # defaults to 12h (value in seconds)
+# - name: OCSP_MANAGER_RECONCILE_INTERVAL
+#   value: "60"
+# # defaults to 3 days (value in seconds)
+# - name: OCSP_MANAGER_REFRESH_INTERVAL
+#   value: "60"
 # ...
 
 serviceAccount:
@@ -36,10 +47,12 @@ rbac:
 
 podAnnotations: {}
 
-podSecurityContext: {}
+podSecurityContext:
+  {}
   # fsGroup: 2000
 
-securityContext: {}
+securityContext:
+  {}
   # capabilities:
   #   drop:
   #   - ALL
@@ -47,7 +60,8 @@ securityContext: {}
   # runAsNonRoot: true
   # runAsUser: 1000
 
-resources: {}
+resources:
+  {}
   # We usually recommend not to specify default resources and to leave this as a conscious
   # choice for the user. This also increases chances charts run on environments with little
   # resources, such as Minikube. If you do want to specify resources, uncomment the following
